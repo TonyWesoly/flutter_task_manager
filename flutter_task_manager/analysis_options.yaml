@@ -1,0 +1,35 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  strong-mode:
+    implicit-casts: false
+    implicit-dynamic: false
+    strict-inference: true
+    strict-raw-types: true
+
+  errors:
+    implicit-dynamic: error
+    strict-raw-types: error
+
+  exclude:
+    - build/**
+    - lib/generated_plugin_registrant.dart
+
+linter:
+  rules:
+    - always_specify_types: true
+    - avoid_dynamic_calls: true
+    - avoid_void_async: true
+    - prefer_typing_uninitialized_variables: true
+    - unnecessary_lambdas: true
+    - void_checks: true
+
+    - avoid_empty_else: true
+    - prefer_final_fields: true
+    - prefer_const_declarations: true
+    - annotate_overrides: true
+    - use_key_in_widget_constructors: true
+    - sized_box_for_whitespace: true
+    - use_full_hex_values_for_flutter_colors: true
+    - directives_ordering: true
+    - always_put_required_named_parameters_first: true
