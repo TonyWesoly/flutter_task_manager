@@ -44,4 +44,5 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
       ..orderBy([(t) => OrderingTerm(expression: t.deadline, mode: OrderingMode.asc)]))
         .get();
   }
+
 }

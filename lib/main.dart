@@ -16,7 +16,7 @@ class MyApp extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider(
-          create: (context) => TasksCubit(database: AppDatabase())..loadTasks(),
+          create: (context) => TasksCubit(database: AppDatabase())..loadIncompleteTasks(),
         ),
       ],
       child: MaterialApp(

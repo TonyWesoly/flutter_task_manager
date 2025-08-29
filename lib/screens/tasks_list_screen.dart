@@ -22,17 +22,20 @@ class TaskListScreen extends StatelessWidget {
               itemBuilder: (context, index) {
                 final todo = tasks[index];
                 return ListTile(
-                  title: Text(todo.title,style: Theme.of(context).textTheme.bodyLarge,),
-                  subtitle:
-                      todo.description != null && todo.description!.isNotEmpty
-                      ? Text(todo.description!)
-                      : null,
                   leading: Checkbox(
-                    value: todo.completedAt != null,
+                    value: false,
                     onChanged: (value) {
                       context.read<TasksCubit>().toggleTask(todo.id);
                     },
                   ),
+                  title: Text(
+                    todo.title,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  subtitle:
+                      todo.description != null && todo.description!.isNotEmpty
+                      ? Text(todo.description!)
+                      : null,
                 );
               },
             );
@@ -43,18 +46,19 @@ class TaskListScreen extends StatelessWidget {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: Theme.of(context).colorScheme.primary, // Kolor tła
-        foregroundColor: Theme.of(context).colorScheme.onPrimary, // Kolor ikony
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
         onPressed: () {
           Navigator.of(context).push(
             MaterialPageRoute<void>(
               builder: (context) => BlocProvider.value(
-                // Dodaj BlocProvider.value
-                value: context.read<TasksCubit>(), // Przekaż istniejący cubit
+                value: context.read<TasksCubit>(),
                 child: const AddingTask(),
               ),
             ),
-          );
+          ).then((_) {
+            context.read<TasksCubit>().loadIncompleteTasks();
+          });
         },
         child: Icon(Icons.add),
       ),

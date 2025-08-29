@@ -40,16 +40,16 @@ class TasksCubit extends Cubit<TasksState> {
           deadline: Value(deadline),
         )
       );
-      loadTasks();
+      loadIncompleteTasks();
     } catch (e){
       emit(TasksError('Failed to update task: ${e.toString()}'));
     }
   }
 
-  void toggleTask(int id) async {
+  Future<void> toggleTask(int id) async {
     try {
       await database.taskDao.toggleTask(id);
-      loadTasks();
+      loadIncompleteTasks(); 
     } catch (e){
       emit(TasksError('Failed to toggle task: ${e.toString()}'));
     }
@@ -63,4 +63,14 @@ class TasksCubit extends Cubit<TasksState> {
       emit(TasksError('Failed to delete task: ${e.toString()}'));
     }
   }
+
+  void loadIncompleteTasks() async {
+  emit(TasksLoading());
+  try {
+    final tasks = await database.taskDao.getIncompleteTasks();
+    emit(TasksLoaded(tasks));
+  } catch (e) {
+    emit(TasksError(e.toString()));
+  }
+}
 }
