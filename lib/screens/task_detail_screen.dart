@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_task_manager/screens/adding_editing_task.dart';
 import 'package:intl/intl.dart';
 import '../cubit/task_cubit.dart';
 import '../database/database.dart';
@@ -17,7 +18,14 @@ class TaskDetailScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.edit),
             onPressed: () {
-              // TODO: Przejdź do ekranu edycji
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => BlocProvider.value(
+                    value: context.read<TasksCubit>(),
+                    child: AddingEditingTask(mode: TaskMode.edit, task: task),
+                  ),
+                ),
+              );
             },
           ),
           IconButton(
@@ -45,11 +53,11 @@ class TaskDetailScreen extends StatelessWidget {
               spacing: 16.0,
               children: [
                 IconTheme(
-                        data: IconThemeData(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                        child: const Icon(Icons.calendar_month),
-                      ),
+                  data: IconThemeData(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  child: const Icon(Icons.calendar_month),
+                ),
                 Column(
                   children: [
                     Text(
@@ -74,6 +82,18 @@ class TaskDetailScreen extends StatelessWidget {
           ],
         ),
       ),
+      floatingActionButton: task.completedAt == null
+          ? FloatingActionButton(
+              onPressed: () {
+                context.read<TasksCubit>().toggleTask(task.id).then((_) {
+                  Navigator.of(context).pop();
+                });
+              },
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
+              child: const Icon(Icons.check),
+            )
+          : null,
     );
   }
 

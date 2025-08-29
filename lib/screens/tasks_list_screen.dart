@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_task_manager/screens/adding_task.dart';
+import 'package:flutter_task_manager/screens/adding_editing_task.dart';
 import 'package:flutter_task_manager/screens/task_detail_screen.dart';
 import '../cubit/task_cubit.dart';
 
@@ -64,7 +64,7 @@ class TaskListScreen extends StatelessWidget {
             MaterialPageRoute<void>(
               builder: (context) => BlocProvider.value(
                 value: context.read<TasksCubit>(),
-                child: const AddingTask(),
+                child: const AddingEditingTask(mode: TaskMode.add),
               ),
             ),
           ).then((_) {

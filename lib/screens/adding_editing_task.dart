@@ -1,19 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_task_manager/database/database.dart';
 import 'package:intl/intl.dart';
 import '../cubit/task_cubit.dart';
 
-class AddingTask extends StatefulWidget {
-  const AddingTask({super.key});
+enum TaskMode { add, edit }
+
+class AddingEditingTask extends StatefulWidget {
+  final TaskMode mode;
+  final Task? task;
+
+  const AddingEditingTask({
+    super.key,
+    required this.mode,
+    this.task,
+  }) : assert(mode == TaskMode.edit ? task != null : true,
+             'Task must be provided in edit mode');
 
   @override
-  State<AddingTask> createState() => _AddingTaskState();
+  State<AddingEditingTask> createState() => _AddingEditingTaskState();
 }
 
-class _AddingTaskState extends State<AddingTask> {
+class _AddingEditingTaskState extends State<AddingEditingTask> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   DateTime? _selectedDate;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.mode == TaskMode.edit) {
+      _titleController.text = widget.task!.title;
+      _selectedDate = widget.task!.deadline;
+    }
+  }
 
   @override
   void dispose() {
@@ -24,7 +44,7 @@ class _AddingTaskState extends State<AddingTask> {
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: _selectedDate ?? DateTime.now(),
       firstDate: DateTime.now(),
       lastDate: DateTime(2100),
     );
@@ -38,9 +58,20 @@ class _AddingTaskState extends State<AddingTask> {
 
   void _submitForm() {
     if (_formKey.currentState!.validate() && _selectedDate != null) {
-      // Add task using cubit
-      context.read<TasksCubit>().addTask(_titleController.text, _selectedDate!);
-      Navigator.of(context).pop();
+      if (widget.mode == TaskMode.edit) {
+        final updatedTask = widget.task!.copyWith(
+          title: _titleController.text,
+          deadline: _selectedDate!,
+        );
+        context.read<TasksCubit>().updateTask(updatedTask);
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      } else {
+        context.read<TasksCubit>().addTask(
+          _titleController.text,
+          _selectedDate!,
+        );
+        Navigator.of(context).pop();
+      }
     }
   }
 
@@ -48,19 +79,15 @@ class _AddingTaskState extends State<AddingTask> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: Icon(Icons.close),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+        title: Text(widget.mode == TaskMode.edit ? 'Edytuj zadanie' : 'Dodaj zadanie'),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: FilledButton(
-                    onPressed: _submitForm,
-                    child: const Text('Zapisz'),
-                  ),
+              onPressed: _submitForm,
+              child: Text(widget.mode == TaskMode.edit ? 'Zapisz' : 'Dodaj'),
+            ),
           ),
-                
         ],
       ),
       body: Padding(

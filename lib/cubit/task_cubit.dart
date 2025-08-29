@@ -32,16 +32,13 @@ class TasksCubit extends Cubit<TasksState> {
     }
   }
 
-  void addTask(String title,DateTime deadline) async {
-    try{
+  void addTask(String title, DateTime deadline) async {
+    try {
       await database.taskDao.insertTask(
-        TasksCompanion(
-          title: Value(title),
-          deadline: Value(deadline),
-        )
+        TasksCompanion(title: Value(title), deadline: Value(deadline)),
       );
       loadIncompleteTasks();
-    } catch (e){
+    } catch (e) {
       emit(TasksError('Failed to update task: ${e.toString()}'));
     }
   }
@@ -49,28 +46,37 @@ class TasksCubit extends Cubit<TasksState> {
   Future<void> toggleTask(int id) async {
     try {
       await database.taskDao.toggleTask(id);
-      loadIncompleteTasks(); 
-    } catch (e){
+      loadIncompleteTasks();
+    } catch (e) {
       emit(TasksError('Failed to toggle task: ${e.toString()}'));
     }
   }
 
-  Future<void>  deleteTask(int id) async{
-    try{
+  Future<void> deleteTask(int id) async {
+    try {
       await database.taskDao.deleteTask(id);
       loadIncompleteTasks();
-    } catch(e){
+    } catch (e) {
       emit(TasksError('Failed to delete task: ${e.toString()}'));
     }
   }
 
   void loadIncompleteTasks() async {
-  emit(TasksLoading());
-  try {
-    final tasks = await database.taskDao.getIncompleteTasks();
-    emit(TasksLoaded(tasks));
-  } catch (e) {
-    emit(TasksError(e.toString()));
+    emit(TasksLoading());
+    try {
+      final tasks = await database.taskDao.getIncompleteTasks();
+      emit(TasksLoaded(tasks));
+    } catch (e) {
+      emit(TasksError(e.toString()));
+    }
   }
-}
+
+  Future<void> updateTask(Task task) async {
+    try {
+      await database.taskDao.updateTask(task);
+      loadIncompleteTasks();
+    } catch (e) {
+      emit(TasksError('Failed to update task: ${e.toString()}'));
+    }
+  }
 }
