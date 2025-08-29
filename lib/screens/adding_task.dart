@@ -68,7 +68,7 @@ class _AddingTaskState extends State<AddingTask> {
         child: Form(
           key: _formKey,
           child: Column(
-            spacing: 10.0,
+            spacing: 16.0,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(

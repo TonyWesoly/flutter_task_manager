@@ -55,10 +55,10 @@ class TasksCubit extends Cubit<TasksState> {
     }
   }
 
-  void deleteTask(int id) async{
+  Future<void>  deleteTask(int id) async{
     try{
       await database.taskDao.deleteTask(id);
-      loadTasks();
+      loadIncompleteTasks();
     } catch(e){
       emit(TasksError('Failed to delete task: ${e.toString()}'));
     }

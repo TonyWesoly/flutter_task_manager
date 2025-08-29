@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_task_manager/screens/adding_task.dart';
+import 'package:flutter_task_manager/screens/task_detail_screen.dart';
 import '../cubit/task_cubit.dart';
 
 class TaskListScreen extends StatelessWidget {
@@ -36,6 +37,16 @@ class TaskListScreen extends StatelessWidget {
                       todo.description != null && todo.description!.isNotEmpty
                       ? Text(todo.description!)
                       : null,
+                      onTap: () {
+                        Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => BlocProvider.value(
+                          value: context.read<TasksCubit>(),
+                          child: TaskDetailScreen(task: todo),
+                        ),
+                      ),
+                    );
+                      },
                 );
               },
             );
