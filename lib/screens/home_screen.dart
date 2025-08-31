@@ -60,7 +60,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _isSelectionMode = false;
       _selectedTaskIds.clear();
     });
-    
+
     if (_currentIndex == 0) {
       _currentTasksKey.currentState?.exitSelectionMode();
     } else if (_currentIndex == 1) {
@@ -78,7 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_isSelectionMode) {
       _exitSelectionMode();
     }
-    
+
     setState(() {
       _currentIndex = index;
     });
@@ -122,9 +122,13 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () {
               Navigator.of(context).pop();
               if (_currentIndex == 0) {
-                context.read<TasksCubit>().deleteMultipleTasks(_selectedTaskIds.toList());
+                context.read<TasksCubit>().deleteMultipleTasks(
+                  _selectedTaskIds.toList(),
+                );
               } else {
-                context.read<TasksCubit>().deleteMultipleCompletedTasks(_selectedTaskIds.toList());
+                context.read<TasksCubit>().deleteMultipleCompletedTasks(
+                  _selectedTaskIds.toList(),
+                );
               }
               _exitSelectionMode();
             },
@@ -142,9 +146,11 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isSelectionMode 
-            ? 'Zaznaczono: ${_selectedTaskIds.length}'
-            : _titles[_currentIndex]),
+        title: Text(
+          _isSelectionMode
+              ? 'Zaznaczono: ${_selectedTaskIds.length}'
+              : _titles[_currentIndex],
+        ),
         leading: _isSelectionMode
             ? IconButton(
                 icon: const Icon(Icons.close),
@@ -153,66 +159,63 @@ class _HomeScreenState extends State<HomeScreen> {
             : null,
       ),
       body: Stack(
-        children: [
-          IndexedStack(
-            index: _currentIndex,
-            children: _screens,
-          ),
-        ],
+        children: [IndexedStack(index: _currentIndex, children: _screens)],
       ),
       bottomNavigationBar: _isSelectionMode
           ? BottomAppBar(
-              height: 64,
+              // height: 64,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   if (_currentIndex == 0) ...[
                     IconButton(
                       icon: const Icon(Icons.check_circle_outline),
-                      onPressed: _selectedTaskIds.isEmpty ? null : _handleCompleteSelected,
+                      onPressed: _selectedTaskIds.isEmpty
+                          ? null
+                          : _handleCompleteSelected,
                       tooltip: 'Oznacz jako wykonane',
                     ),
                   ] else if (_currentIndex == 1) ...[
                     IconButton(
                       icon: const Icon(Icons.undo),
-                      onPressed: _selectedTaskIds.isEmpty ? null : _handleRestoreSelected,
+                      onPressed: _selectedTaskIds.isEmpty
+                          ? null
+                          : _handleRestoreSelected,
                       tooltip: 'Przywróć',
                     ),
                   ],
                   IconButton(
                     icon: const Icon(Icons.delete_outline),
-                    onPressed: _selectedTaskIds.isEmpty ? null : _handleDeleteSelected,
+                    onPressed: _selectedTaskIds.isEmpty
+                        ? null
+                        : _handleDeleteSelected,
                     tooltip: 'Usuń',
                   ),
                 ],
               ),
             )
-          : AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              height: _isSelectionMode ? 0 : null,
-              child: BottomNavigationBar(
-                currentIndex: _currentIndex,
-                onTap: _onTabTapped,
-                backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
-                items: const [
-                  BottomNavigationBarItem(
-                    icon: Icon(Symbols.view_list),
-                    activeIcon: Icon(Symbols.view_list, fill: 1),
-                    label: 'Obecne',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Symbols.check_box),
-                    activeIcon: Icon(Symbols.check_box, fill: 1),
-                    label: 'Wykonane',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Symbols.insert_chart),
-                    activeIcon: Icon(Symbols.insert_chart, fill: 1),
-                    label: 'Statystyki',
-                  ),
-                ],
-              ),
+          : NavigationBar(
+              destinations: [
+                NavigationDestination(
+                  icon: Icon(Symbols.view_list),
+                  selectedIcon: Icon(Symbols.view_list, fill: 1),
+                  label: 'Obecne',
+                ),
+                NavigationDestination(
+                  icon: Icon(Symbols.check_box),
+                  selectedIcon: Icon(Symbols.check_box, fill: 1),
+                  label: 'Wykonane',
+                ),
+                NavigationDestination(
+                  icon: Icon(Symbols.insert_chart),
+                  selectedIcon: Icon(Symbols.insert_chart, fill: 1),
+                  label: 'Statystyki',
+                ),
+              ],
+              selectedIndex: _currentIndex,
+              onDestinationSelected: _onTabTapped,
             ),
+
     );
   }
 }
