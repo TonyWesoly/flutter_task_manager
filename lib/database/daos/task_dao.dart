@@ -54,20 +54,26 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
         .get();
   }
 
-  Future<Map<DateTime, int>> getCompletionStatistics() async {
+  Future<Map<DateTime, int>> getWeekStatistics(int weekOffset) async {
     final now = DateTime.now();
-    final startOfToday = DateTime(now.year, now.month, now.day);
-    final sevenDaysAgo = startOfToday.subtract(const Duration(days: 6));
-
+    final today = DateTime(now.year, now.month, now.day);
+    
+    final weekday = today.weekday;
+    final mondayOfCurrentWeek = today.subtract(Duration(days: weekday - 1));
+    
+    final mondayOfTargetWeek = mondayOfCurrentWeek.add(Duration(days: weekOffset * 7));
+    final sundayOfTargetWeek = mondayOfTargetWeek.add(const Duration(days: 6));
+    
     final completedTasks = await (select(tasks)
       ..where((t) => t.completedAt.isNotNull() & 
-                     t.completedAt.isBiggerOrEqualValue(sevenDaysAgo)))
+                     t.completedAt.isBiggerOrEqualValue(mondayOfTargetWeek) &
+                     t.completedAt.isSmallerOrEqualValue(sundayOfTargetWeek.add(const Duration(days: 1)))))
         .get();
 
     final Map<DateTime, int> statistics = {};
     
     for (int i = 0; i < 7; i++) {
-      final date = startOfToday.subtract(Duration(days: 6 - i));
+      final date = mondayOfTargetWeek.add(Duration(days: i));
       statistics[date] = 0;
     }
 
@@ -86,5 +92,16 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
     }
 
     return statistics;
+  }
+
+  Future<int> getTotalCompletedTasks() async {
+    final completedTasks = await (select(tasks)
+      ..where((t) => t.completedAt.isNotNull()))
+        .get();
+    return completedTasks.length;
+  }
+
+  Future<Map<DateTime, int>> getCompletionStatistics() async {
+    return getWeekStatistics(0);
   }
 }

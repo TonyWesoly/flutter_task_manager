@@ -21,7 +21,14 @@ class TasksError extends TasksState {
 
 class StatisticsLoaded extends TasksState {
   final Map<DateTime, int> statistics;
-  StatisticsLoaded(this.statistics);
+  final int weekOffset;
+  final int totalCompleted;
+  
+  StatisticsLoaded({
+    required this.statistics,
+    required this.weekOffset,
+    required this.totalCompleted,
+  });
 }
 
 class TasksCubit extends Cubit<TasksState> {
@@ -41,26 +48,26 @@ class TasksCubit extends Cubit<TasksState> {
     }
   }
 
-void addTask(String title, DateTime deadline, [String? description]) async {
-  try {
-    final id = await database.taskDao.insertTask(
-      TasksCompanion(
-        title: Value(title),
-        deadline: Value(deadline),
-        description: Value(description),
-      ),
-    );
+  void addTask(String title, DateTime deadline, [String? description]) async {
+    try {
+      final id = await database.taskDao.insertTask(
+        TasksCompanion(
+          title: Value(title),
+          deadline: Value(deadline),
+          description: Value(description),
+        ),
+      );
 
-    final task = await database.taskDao.getTaskById(id);
-    if (task != null) {
-      await notifications.scheduleReminderForTask(task);
+      final task = await database.taskDao.getTaskById(id);
+      if (task != null) {
+        await notifications.scheduleReminderForTask(task);
+      }
+
+      loadIncompleteTasks();
+    } catch (e) {
+      emit(TasksError('Failed to add task: ${e.toString()}'));
     }
-
-    loadIncompleteTasks();
-  } catch (e) {
-    emit(TasksError('Failed to add task: ${e.toString()}'));
   }
-}
 
   Future<void> toggleTask(int id) async {
     try {
@@ -112,10 +119,19 @@ void addTask(String title, DateTime deadline, [String? description]) async {
   }
 
   void loadStatistics() async {
+    loadWeekStatistics(0);
+  }
+
+  void loadWeekStatistics(int weekOffset) async {
     emit(TasksLoading());
     try {
-      final stats = await database.taskDao.getCompletionStatistics();
-      emit(StatisticsLoaded(stats));
+      final stats = await database.taskDao.getWeekStatistics(weekOffset);
+      final total = await database.taskDao.getTotalCompletedTasks();
+      emit(StatisticsLoaded(
+        statistics: stats,
+        weekOffset: weekOffset,
+        totalCompleted: total,
+      ));
     } catch (e) {
       emit(TasksError(e.toString()));
     }
