@@ -18,6 +18,7 @@ class AppDatabase extends _$AppDatabase {
   @override
   int get schemaVersion => 1;
 
+  @override
   TaskDao get taskDao => TaskDao(this); 
 }
 

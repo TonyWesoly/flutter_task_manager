@@ -11,10 +11,10 @@ class CompletedTasksScreen extends StatefulWidget {
   final Function(Set<int>) onSelectedTasksChanged;
 
   const CompletedTasksScreen({
-    Key? key,
+    super.key,
     required this.onSelectionModeChanged,
     required this.onSelectedTasksChanged,
-  }) : super(key: key);
+  });
 
   @override
   State<CompletedTasksScreen> createState() => CompletedTasksScreenState();
@@ -66,11 +66,12 @@ class CompletedTasksScreenState extends State<CompletedTasksScreen> {
               child: const Text('Anuluj'),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.of(dialogContext).pop();
-                context.read<TasksCubit>().toggleTask(task.id).then((_) {
-                  context.read<TasksCubit>().loadCompletedTasks();
-                });
+                if (!context.mounted) return;
+                await context.read<TasksCubit>().toggleTask(task.id);
+                if (!context.mounted) return;
+                context.read<TasksCubit>().loadCompletedTasks();
               },
               child: const Text('Przywróć'),
             ),
@@ -113,22 +114,22 @@ class CompletedTasksScreenState extends State<CompletedTasksScreen> {
             itemBuilder: (context, index) {
               final task = tasks[index];
               final isSelected = _selectedTaskIds.contains(task.id);
-              
+
               return ListTile(
-                tileColor: isSelected 
-                    ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3)
+                tileColor: isSelected
+                    ? Theme.of(
+                        context,
+                      ).colorScheme.primaryContainer.withValues(alpha: 0.3)
                     : null,
                 leading: _isSelectionMode
                     ? IconButton(
                         icon: isSelected
-                              ? Icon(
+                            ? Icon(
                                 Symbols.check_circle,
-                                  color: Theme.of(context).colorScheme.primary,
-                                  fill: 1.0,
-                                )
-                              : Icon(
-                                Symbols.circle,
-                                ),
+                                color: Theme.of(context).colorScheme.primary,
+                                fill: 1.0,
+                              )
+                            : Icon(Symbols.circle),
                         onPressed: () => _toggleTaskSelection(task.id),
                         padding: EdgeInsets.zero,
                       )
@@ -140,7 +141,8 @@ class CompletedTasksScreenState extends State<CompletedTasksScreen> {
                   task.title,
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
-                subtitle: task.description != null && task.description!.isNotEmpty
+                subtitle:
+                    task.description != null && task.description!.isNotEmpty
                     ? Text(
                         task.description!,
                         style: Theme.of(context).textTheme.bodyMedium!.copyWith(

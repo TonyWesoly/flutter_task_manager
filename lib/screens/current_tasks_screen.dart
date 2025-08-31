@@ -11,10 +11,10 @@ class CurrentTasksScreen extends StatefulWidget {
   final Function(Set<int>) onSelectedTasksChanged;
 
   const CurrentTasksScreen({
-    Key? key,
+    super.key,
     required this.onSelectionModeChanged,
     required this.onSelectedTasksChanged,
-  }) : super(key: key);
+  });
 
   @override
   State<CurrentTasksScreen> createState() => CurrentTasksScreenState();
@@ -84,22 +84,22 @@ class CurrentTasksScreenState extends State<CurrentTasksScreen> {
               itemBuilder: (context, index) {
                 final task = tasks[index];
                 final isSelected = _selectedTaskIds.contains(task.id);
-                
+
                 return ListTile(
-                  tileColor: isSelected 
-                      ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3)
+                  tileColor: isSelected
+                      ? Theme.of(
+                          context,
+                        ).colorScheme.primaryContainer.withValues(alpha: 0.3)
                       : null,
                   leading: _isSelectionMode
                       ? IconButton(
                           icon: isSelected
                               ? Icon(
-                                Symbols.check_circle,
+                                  Symbols.check_circle,
                                   color: Theme.of(context).colorScheme.primary,
                                   fill: 1.0,
                                 )
-                              : Icon(
-                                Symbols.circle,
-                                ),
+                              : Icon(Symbols.circle),
                           onPressed: () => _toggleTaskSelection(task.id),
                           padding: EdgeInsets.zero,
                         )
@@ -113,12 +113,16 @@ class CurrentTasksScreenState extends State<CurrentTasksScreen> {
                     task.title,
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
-                  subtitle: task.description != null && task.description!.isNotEmpty
+                  subtitle:
+                      task.description != null && task.description!.isNotEmpty
                       ? Text(
                           task.description!,
-                          style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium!
+                              .copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
                         )
                       : null,
                   trailing: Text(
@@ -156,7 +160,7 @@ class CurrentTasksScreenState extends State<CurrentTasksScreen> {
           return const Center(child: Text('Ładowanie...'));
         },
       ),
-      floatingActionButton: _isSelectionMode 
+      floatingActionButton: _isSelectionMode
           ? null
           : FloatingActionButton(
               backgroundColor: Theme.of(context).colorScheme.primary,
@@ -172,8 +176,9 @@ class CurrentTasksScreenState extends State<CurrentTasksScreen> {
                       ),
                     )
                     .then((_) {
-                  context.read<TasksCubit>().loadIncompleteTasks();
-                });
+                      if (!context.mounted) return;
+                      context.read<TasksCubit>().loadIncompleteTasks();
+                    });
               },
               child: const Icon(Icons.add),
             ),

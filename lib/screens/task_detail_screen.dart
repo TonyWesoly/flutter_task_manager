@@ -117,6 +117,7 @@ class TaskDetailScreen extends StatelessWidget {
             _showUndoDialog(context);
           } else {
             context.read<TasksCubit>().toggleTask(task.id).then((_) {
+              if (!context.mounted) return;
               Navigator.of(context).pop();
             });
           }
@@ -145,6 +146,7 @@ class TaskDetailScreen extends StatelessWidget {
                 Navigator.of(dialogContext).pop();
                 
                 context.read<TasksCubit>().deleteTask(task.id).then((_) {
+                  if (!context.mounted) return;
                   Navigator.of(context).pop();
                   
                   if (isFromCompletedScreen) {
@@ -182,6 +184,7 @@ class TaskDetailScreen extends StatelessWidget {
                 Navigator.of(dialogContext).pop();
                 
                 context.read<TasksCubit>().toggleTask(task.id).then((_) {
+                  if (!context.mounted) return;
                   Navigator.of(context).pop();
                   
                   if (isFromCompletedScreen) {

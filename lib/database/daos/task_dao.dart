@@ -6,7 +6,7 @@ part 'task_dao.g.dart';
 
 @DriftAccessor(tables: [Tasks])
 class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
-  TaskDao(AppDatabase db) : super(db);
+  TaskDao(super.db);
 
   // CREATE - Add a new task
   Future<int> insertTask(TasksCompanion task) => into(tasks).insert(task);

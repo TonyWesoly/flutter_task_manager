@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../cubit/task_cubit.dart';
 
 class StatisticsScreen extends StatefulWidget {
+  const StatisticsScreen({super.key});
   @override
   State<StatisticsScreen> createState() => _StatisticsScreenState();
 }
@@ -279,8 +280,8 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                                     color: isMaxDay
                                         ? Theme.of(context).colorScheme.primary
                                         : isToday && _currentWeekOffset == 0
-                                            ? Theme.of(context).colorScheme.primary.withOpacity(0.8)
-                                            : Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                                            ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.8)
+                                            : Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
                                     width: 20,
                                     borderRadius: const BorderRadius.vertical(
                                       top: Radius.circular(4),
@@ -296,7 +297,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                             horizontalInterval: 1,
                             getDrawingHorizontalLine: (value) {
                               return FlLine(
-                                color: Theme.of(context).dividerColor.withOpacity(0.3),
+                                color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
                                 strokeWidth: 1,
                                 dashArray: [5, 5],
                               );
