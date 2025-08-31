@@ -98,6 +98,56 @@ class TasksCubit extends Cubit<TasksState> {
     }
   }
 
+  Future<void> deleteMultipleTasks(List<int> ids) async {
+    try {
+      for (final id in ids) {
+        await notifications.cancelReminder(id);
+        await database.taskDao.deleteTask(id);
+      }
+      loadIncompleteTasks();
+    } catch (e) {
+      emit(TasksError('Failed to delete tasks: ${e.toString()}'));
+    }
+  }
+
+  Future<void> completeMultipleTasks(List<int> ids) async {
+    try {
+      for (final id in ids) {
+        await database.taskDao.toggleTask(id);
+        await notifications.cancelReminder(id);
+      }
+      loadIncompleteTasks();
+    } catch (e) {
+      emit(TasksError('Failed to complete tasks: ${e.toString()}'));
+    }
+  }
+
+  Future<void> restoreMultipleTasks(List<int> ids) async {
+    try {
+      for (final id in ids) {
+        await database.taskDao.toggleTask(id);
+        final task = await database.taskDao.getTaskById(id);
+        if (task != null) {
+          await notifications.scheduleReminderForTask(task);
+        }
+      }
+      loadCompletedTasks();
+    } catch (e) {
+      emit(TasksError('Failed to restore tasks: ${e.toString()}'));
+    }
+  }
+
+  Future<void> deleteMultipleCompletedTasks(List<int> ids) async {
+    try {
+      for (final id in ids) {
+        await database.taskDao.deleteTask(id);
+      }
+      loadCompletedTasks();
+    } catch (e) {
+      emit(TasksError('Failed to delete tasks: ${e.toString()}'));
+    }
+  }
+
   void loadIncompleteTasks() async {
     emit(TasksLoading());
     try {
