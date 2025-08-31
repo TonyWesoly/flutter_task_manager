@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'screens/tasks_list_screen.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'screens/home_screen.dart';
 import 'cubit/task_cubit.dart';
 import 'database/database.dart';
 import 'services/notification_service.dart';
@@ -9,17 +10,18 @@ final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Polish locale for date formatting
+  await initializeDateFormatting('pl', null);
 
   final db = AppDatabase();
 
-  // For testing purposes, you can force test mode (1 min notification after setting task).
   await NotificationService().init(
     db: db,
     navigatorKey: rootNavigatorKey,
-    forceTestMode: false,
+    forceTestMode: true,
   );
 
-  // Plan missing reminders at the start
   await NotificationService().scheduleMissingRemindersForIncompleteTasks();
 
   runApp(MyApp(database: db));
@@ -46,8 +48,9 @@ class MyApp extends StatelessWidget {
         title: 'Todo App',
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
+          useMaterial3: true,
         ),
-        home: TaskListScreen(),
+        home: const HomeScreen(),
       ),
     );
   }

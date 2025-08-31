@@ -3,12 +3,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_task_manager/screens/adding_editing_task.dart';
 import 'package:flutter_task_manager/screens/task_detail_screen.dart';
 import '../cubit/task_cubit.dart';
+import 'package:intl/intl.dart';
 
-class TaskListScreen extends StatelessWidget {
+class CurrentTasksScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Lista Zadań')),
       body: BlocBuilder<TasksCubit, TasksState>(
         builder: (context, state) {
           if (state is TasksLoading) {
@@ -16,37 +16,57 @@ class TaskListScreen extends StatelessWidget {
           } else if (state is TasksLoaded) {
             final tasks = state.tasks;
             if (tasks.isEmpty) {
-              return Center(child: Text('Nie znaleziono zadań!'));
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.task_alt,
+                      size: 64,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Brak zadań do wykonania!',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ],
+                ),
+              );
             }
             return ListView.builder(
               itemCount: tasks.length,
               itemBuilder: (context, index) {
-                final todo = tasks[index];
+                final task = tasks[index];
                 return ListTile(
                   leading: Checkbox(
                     value: false,
                     onChanged: (value) {
-                      context.read<TasksCubit>().toggleTask(todo.id);
+                      context.read<TasksCubit>().toggleTask(task.id);
                     },
                   ),
                   title: Text(
-                    todo.title,
+                    task.title,
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
                   subtitle:
-                      todo.description != null && todo.description!.isNotEmpty
-                      ? Text(todo.description!)
+                      task.description != null && task.description!.isNotEmpty
+                      ? Text(task.description!)
                       : null,
-                      onTap: () {
-                        Navigator.of(context).push(
+                  trailing: Text(
+                    DateFormat('d MMMM','pl_PL').format(task.deadline),
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                  onTap: () {
+                    Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (context) => BlocProvider.value(
                           value: context.read<TasksCubit>(),
-                          child: TaskDetailScreen(task: todo),
+                          child: TaskDetailScreen(task: task),
                         ),
                       ),
                     );
-                      },
+                  },
                 );
               },
             );
@@ -60,16 +80,18 @@ class TaskListScreen extends StatelessWidget {
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Theme.of(context).colorScheme.onPrimary,
         onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (context) => BlocProvider.value(
-                value: context.read<TasksCubit>(),
-                child: const AddingEditingTask(mode: TaskMode.add),
-              ),
-            ),
-          ).then((_) {
-            context.read<TasksCubit>().loadIncompleteTasks();
-          });
+          Navigator.of(context)
+              .push(
+                MaterialPageRoute<void>(
+                  builder: (context) => BlocProvider.value(
+                    value: context.read<TasksCubit>(),
+                    child: const AddingEditingTask(mode: TaskMode.add),
+                  ),
+                ),
+              )
+              .then((_) {
+                context.read<TasksCubit>().loadIncompleteTasks();
+              });
         },
         child: Icon(Icons.add),
       ),

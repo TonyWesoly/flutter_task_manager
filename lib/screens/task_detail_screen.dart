@@ -75,9 +75,12 @@ class TaskDetailScreen extends StatelessWidget {
             ),
 
             if (task.description != null && task.description!.isNotEmpty)
-              Text(
-                task.description!,
-                style: Theme.of(context).textTheme.bodyLarge,
+              Padding(
+                padding: const EdgeInsets.only(top: 16.0),
+                child: Text(
+                  task.description!,
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
               ),
           ],
         ),

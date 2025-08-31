@@ -19,6 +19,11 @@ class TasksError extends TasksState {
   TasksError(this.message);
 }
 
+class StatisticsLoaded extends TasksState {
+  final Map<DateTime, int> statistics;
+  StatisticsLoaded(this.statistics);
+}
+
 class TasksCubit extends Cubit<TasksState> {
   final AppDatabase database;
   final NotificationService notifications;
@@ -36,22 +41,26 @@ class TasksCubit extends Cubit<TasksState> {
     }
   }
 
-  void addTask(String title, DateTime deadline) async {
-    try {
-      final id = await database.taskDao.insertTask(
-        TasksCompanion(title: Value(title), deadline: Value(deadline)),
-      );
+void addTask(String title, DateTime deadline, [String? description]) async {
+  try {
+    final id = await database.taskDao.insertTask(
+      TasksCompanion(
+        title: Value(title),
+        deadline: Value(deadline),
+        description: Value(description),
+      ),
+    );
 
-      final task = await database.taskDao.getTaskById(id);
-      if (task != null) {
-        await notifications.scheduleReminderForTask(task);
-      }
-
-      loadIncompleteTasks();
-    } catch (e) {
-      emit(TasksError('Failed to update task: ${e.toString()}'));
+    final task = await database.taskDao.getTaskById(id);
+    if (task != null) {
+      await notifications.scheduleReminderForTask(task);
     }
+
+    loadIncompleteTasks();
+  } catch (e) {
+    emit(TasksError('Failed to add task: ${e.toString()}'));
   }
+}
 
   Future<void> toggleTask(int id) async {
     try {
@@ -87,6 +96,26 @@ class TasksCubit extends Cubit<TasksState> {
     try {
       final tasks = await database.taskDao.getIncompleteTasks();
       emit(TasksLoaded(tasks));
+    } catch (e) {
+      emit(TasksError(e.toString()));
+    }
+  }
+
+  void loadCompletedTasks() async {
+    emit(TasksLoading());
+    try {
+      final tasks = await database.taskDao.getCompletedTasks();
+      emit(TasksLoaded(tasks));
+    } catch (e) {
+      emit(TasksError(e.toString()));
+    }
+  }
+
+  void loadStatistics() async {
+    emit(TasksLoading());
+    try {
+      final stats = await database.taskDao.getCompletionStatistics();
+      emit(StatisticsLoaded(stats));
     } catch (e) {
       emit(TasksError(e.toString()));
     }

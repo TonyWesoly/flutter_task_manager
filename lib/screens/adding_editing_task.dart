@@ -10,12 +10,11 @@ class AddingEditingTask extends StatefulWidget {
   final TaskMode mode;
   final Task? task;
 
-  const AddingEditingTask({
-    super.key,
-    required this.mode,
-    this.task,
-  }) : assert(mode == TaskMode.edit ? task != null : true,
-             'Task must be provided in edit mode');
+  const AddingEditingTask({super.key, required this.mode, this.task})
+    : assert(
+        mode == TaskMode.edit ? task != null : true,
+        'Task must be provided in edit mode',
+      );
 
   @override
   State<AddingEditingTask> createState() => _AddingEditingTaskState();
@@ -24,6 +23,7 @@ class AddingEditingTask extends StatefulWidget {
 class _AddingEditingTaskState extends State<AddingEditingTask> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
+  final _descriptionController = TextEditingController();
   DateTime? _selectedDate;
 
   @override
@@ -31,6 +31,7 @@ class _AddingEditingTaskState extends State<AddingEditingTask> {
     super.initState();
     if (widget.mode == TaskMode.edit) {
       _titleController.text = widget.task!.title;
+      _descriptionController.text = widget.task!.description ?? '';
       _selectedDate = widget.task!.deadline;
     }
   }
@@ -38,6 +39,7 @@ class _AddingEditingTaskState extends State<AddingEditingTask> {
   @override
   void dispose() {
     _titleController.dispose();
+    _descriptionController.dispose();
     super.dispose();
   }
 
@@ -58,9 +60,14 @@ class _AddingEditingTaskState extends State<AddingEditingTask> {
 
   void _submitForm() {
     if (_formKey.currentState!.validate() && _selectedDate != null) {
+      final description = _descriptionController.text.trim().isEmpty 
+          ? null 
+          : _descriptionController.text.trim();
+
       if (widget.mode == TaskMode.edit) {
         final updatedTask = widget.task!.copyWith(
           title: _titleController.text,
+          description: description,
           deadline: _selectedDate!,
         );
         context.read<TasksCubit>().updateTask(updatedTask);
@@ -69,6 +76,7 @@ class _AddingEditingTaskState extends State<AddingEditingTask> {
         context.read<TasksCubit>().addTask(
           _titleController.text,
           _selectedDate!,
+          description,
         );
         Navigator.of(context).pop();
       }
@@ -79,7 +87,9 @@ class _AddingEditingTaskState extends State<AddingEditingTask> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.mode == TaskMode.edit ? 'Edytuj zadanie' : 'Dodaj zadanie'),
+        title: Text(
+          widget.mode == TaskMode.edit ? 'Edytuj zadanie' : 'Dodaj zadanie',
+        ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
@@ -136,6 +146,40 @@ class _AddingEditingTaskState extends State<AddingEditingTask> {
                       ),
                     ],
                   ),
+                ),
+              ),
+              const Divider(),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Row(
+                  spacing: 16.0,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12.0),
+                      child: IconTheme(
+                        data: IconThemeData(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        child: const Icon(Icons.description),
+                      ),
+                    ),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _descriptionController,
+                        style: Theme.of(context).textTheme.bodyLarge,
+                        maxLines: null,
+                        keyboardType: TextInputType.multiline,
+                        decoration: InputDecoration(
+                          hintText: 'Dodaj szczegóły',
+                          hintStyle: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.6),
+                          ),
+                          border: InputBorder.none,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
