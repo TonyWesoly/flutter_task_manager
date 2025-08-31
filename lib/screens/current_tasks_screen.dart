@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_task_manager/screens/adding_editing_task.dart';
-import 'package:flutter_task_manager/screens/task_detail_screen.dart';
-import 'package:material_symbols_icons/symbols.dart';
-import '../cubit/task_cubit.dart';
 import 'package:intl/intl.dart';
+
+import '../core/constants.dart';
+import '../cubit/task_cubit.dart';
+import '../database/database.dart';
+import '../mixins/selection_mode_mixin.dart';
+import '../widgets/empty_state_widget.dart';
+import '../widgets/selection_icon.dart';
+import '../widgets/task_list_tile.dart';
+import 'adding_editing_task.dart';
+import 'task_detail_screen.dart';
 
 class CurrentTasksScreen extends StatefulWidget {
   final Function(bool) onSelectionModeChanged;
@@ -20,35 +26,85 @@ class CurrentTasksScreen extends StatefulWidget {
   State<CurrentTasksScreen> createState() => CurrentTasksScreenState();
 }
 
-class CurrentTasksScreenState extends State<CurrentTasksScreen> {
-  bool _isSelectionMode = false;
-  Set<int> _selectedTaskIds = {};
-
-  void _enterSelectionMode(int firstTaskId) {
-    setState(() {
-      _isSelectionMode = true;
-      _selectedTaskIds = {firstTaskId};
-    });
-    widget.onSelectionModeChanged(true);
-    widget.onSelectedTasksChanged(_selectedTaskIds);
+class CurrentTasksScreenState extends State<CurrentTasksScreen>
+    with SelectionModeMixin {
+  void _handleTaskTap(Task task) {
+    if (isSelectionMode) {
+      toggleSelection(
+        task.id,
+        onSelectedIdsChanged: widget.onSelectedTasksChanged,
+      );
+    } else {
+      _navigateToTaskDetail(task);
+    }
   }
 
-  void exitSelectionMode() {
-    setState(() {
-      _isSelectionMode = false;
-      _selectedTaskIds.clear();
-    });
+  void _handleTaskLongPress(Task task) {
+    if (!isSelectionMode) {
+      enterSelectionMode(
+        task.id,
+        onSelectionModeChanged: widget.onSelectionModeChanged,
+        onSelectedIdsChanged: widget.onSelectedTasksChanged,
+      );
+    }
   }
 
-  void _toggleTaskSelection(int taskId) {
-    setState(() {
-      if (_selectedTaskIds.contains(taskId)) {
-        _selectedTaskIds.remove(taskId);
-      } else {
-        _selectedTaskIds.add(taskId);
-      }
-    });
-    widget.onSelectedTasksChanged(_selectedTaskIds);
+  void _navigateToTaskDetail(Task task) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => BlocProvider.value(
+          value: context.read<TasksCubit>(),
+          child: TaskDetailScreen(task: task, isFromCompletedScreen: false),
+        ),
+      ),
+    );
+  }
+
+  void _navigateToAddTask() {
+    final cubit = context.read<TasksCubit>();
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute<void>(
+            builder: (context) => BlocProvider.value(
+              value: cubit,
+              child: const AddingEditingTask(mode: TaskMode.add),
+            ),
+          ),
+        )
+        .then((_) {
+          if (!mounted) return;
+          cubit.loadIncompleteTasks();
+        });
+  }
+
+  Widget _buildTaskItem(Task task) {
+    final isSelected = selectedIds.contains(task.id);
+
+    return TaskListTile(
+      task: task,
+      isSelected: isSelected,
+      leading: isSelectionMode
+          ? SelectionIcon(
+              isSelected: isSelected,
+              onPressed: () => toggleSelection(
+                task.id,
+                onSelectedIdsChanged: widget.onSelectedTasksChanged,
+              ),
+            )
+          : Checkbox(
+              value: false,
+              onChanged: (_) => context.read<TasksCubit>().toggleTask(task.id),
+            ),
+      trailing: Text(
+        DateFormat(
+          AppConstants.monthDayFormat,
+          AppConstants.defaultLocale,
+        ).format(task.deadline),
+        style: Theme.of(context).textTheme.labelSmall,
+      ),
+      onTap: () => _handleTaskTap(task),
+      onLongPress: () => _handleTaskLongPress(task),
+    );
   }
 
   @override
@@ -58,128 +114,36 @@ class CurrentTasksScreenState extends State<CurrentTasksScreen> {
         builder: (context, state) {
           if (state is TasksLoading) {
             return const Center(child: CircularProgressIndicator());
-          } else if (state is TasksLoaded) {
-            final tasks = state.tasks;
-            if (tasks.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.task_alt,
-                      size: 64,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Brak zadań do wykonania!',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                  ],
-                ),
+          }
+
+          if (state is TasksLoaded) {
+            if (state.tasks.isEmpty) {
+              return const EmptyStateWidget(
+                icon: Icons.task_alt,
+                message: AppStrings.noTasksToDo,
               );
             }
-            return ListView.builder(
-              itemCount: tasks.length,
-              itemBuilder: (context, index) {
-                final task = tasks[index];
-                final isSelected = _selectedTaskIds.contains(task.id);
 
-                return ListTile(
-                  tileColor: isSelected
-                      ? Theme.of(
-                          context,
-                        ).colorScheme.primaryContainer.withValues(alpha: 0.3)
-                      : null,
-                  leading: _isSelectionMode
-                      ? IconButton(
-                          icon: isSelected
-                              ? Icon(
-                                  Symbols.check_circle,
-                                  color: Theme.of(context).colorScheme.primary,
-                                  fill: 1.0,
-                                )
-                              : Icon(Symbols.circle),
-                          onPressed: () => _toggleTaskSelection(task.id),
-                          padding: EdgeInsets.zero,
-                        )
-                      : Checkbox(
-                          value: false,
-                          onChanged: (value) {
-                            context.read<TasksCubit>().toggleTask(task.id);
-                          },
-                        ),
-                  title: Text(
-                    task.title,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  subtitle:
-                      task.description != null && task.description!.isNotEmpty
-                      ? Text(
-                          task.description!,
-                          style: Theme.of(context).textTheme.bodyMedium!
-                              .copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                        )
-                      : null,
-                  trailing: Text(
-                    DateFormat('d MMMM', 'pl_PL').format(task.deadline),
-                    style: Theme.of(context).textTheme.labelSmall,
-                  ),
-                  onLongPress: () {
-                    if (!_isSelectionMode) {
-                      _enterSelectionMode(task.id);
-                    }
-                  },
-                  onTap: () {
-                    if (_isSelectionMode) {
-                      _toggleTaskSelection(task.id);
-                    } else {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => BlocProvider.value(
-                            value: context.read<TasksCubit>(),
-                            child: TaskDetailScreen(
-                              task: task,
-                              isFromCompletedScreen: false,
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-                  },
-                );
-              },
+            return ListView.builder(
+              itemCount: state.tasks.length,
+              itemBuilder: (context, index) =>
+                  _buildTaskItem(state.tasks[index]),
             );
-          } else if (state is TasksError) {
+          }
+
+          if (state is TasksError) {
             return Center(child: Text('Error: ${state.message}'));
           }
-          return const Center(child: Text('Ładowanie...'));
+
+          return const Center(child: Text(AppStrings.loadingText));
         },
       ),
-      floatingActionButton: _isSelectionMode
+      floatingActionButton: isSelectionMode
           ? null
           : FloatingActionButton(
               backgroundColor: Theme.of(context).colorScheme.primary,
               foregroundColor: Theme.of(context).colorScheme.onPrimary,
-              onPressed: () {
-                Navigator.of(context)
-                    .push(
-                      MaterialPageRoute<void>(
-                        builder: (context) => BlocProvider.value(
-                          value: context.read<TasksCubit>(),
-                          child: const AddingEditingTask(mode: TaskMode.add),
-                        ),
-                      ),
-                    )
-                    .then((_) {
-                      if (!context.mounted) return;
-                      context.read<TasksCubit>().loadIncompleteTasks();
-                    });
-              },
+              onPressed: _navigateToAddTask,
               child: const Icon(Icons.add),
             ),
     );

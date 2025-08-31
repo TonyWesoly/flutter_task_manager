@@ -19,7 +19,7 @@ Future<void> main() async {
   await NotificationService().init(
     db: db,
     navigatorKey: rootNavigatorKey,
-    forceTestMode: true,
+    forceTestMode: false,
   );
 
   await NotificationService().scheduleMissingRemindersForIncompleteTasks();

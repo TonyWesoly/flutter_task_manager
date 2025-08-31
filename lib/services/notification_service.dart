@@ -1,32 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter_task_manager/database/database.dart';
-import 'package:flutter_task_manager/screens/task_detail_screen.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:intl/intl.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
-import 'package:flutter_timezone/flutter_timezone.dart';
+
+import '../core/constants.dart';
+import '../database/database.dart';
+import '../screens/task_detail_screen.dart';
 
 class NotificationService {
   NotificationService._();
   static final NotificationService _instance = NotificationService._();
   factory NotificationService() => _instance;
 
-  final FlutterLocalNotificationsPlugin _plugin =
-      FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
 
   late AppDatabase _db;
   late GlobalKey<NavigatorState> _navigatorKey;
-
   bool _initialized = false;
-
-    // Test mode: 1 minute after adding vs. production mode 12:00 noon the day before.
   late bool testMode;
-
-  static const String channelId = 'deadline_reminders';
-  static const String channelName = 'Deadline reminders';
-  static const String channelDescription =
-      'Powiadomienia o zbliżających się terminach';
 
   Future<void> init({
     required AppDatabase db,
@@ -35,21 +28,30 @@ class NotificationService {
   }) async {
     _db = db;
     _navigatorKey = navigatorKey;
-    testMode =
-        forceTestMode ?? const bool.fromEnvironment('NOTIF_TEST_MODE', defaultValue: true);
+    testMode = forceTestMode ?? 
+        const bool.fromEnvironment('NOTIF_TEST_MODE', defaultValue: true);
 
-    // Time zones (for zonedSchedule).
+    await _initializeTimeZones();
+    await _initializePlugin();
+    await _requestPermissions();
+
+    _initialized = true;
+  }
+
+  Future<void> _initializeTimeZones() async {
     tz.initializeTimeZones();
     try {
       final name = await FlutterTimezone.getLocalTimezone();
       tz.setLocalLocation(tz.getLocation(name));
     } catch (_) {
-      // Fallback: leave the default location
+      // Use default location
     }
+  }
 
+  Future<void> _initializePlugin() async {
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-    final darwinInit = DarwinInitializationSettings();
-    final settings = InitializationSettings(
+    const darwinInit = DarwinInitializationSettings();
+    const settings = InitializationSettings(
       android: androidInit,
       iOS: darwinInit,
       macOS: darwinInit,
@@ -57,48 +59,47 @@ class NotificationService {
 
     await _plugin.initialize(
       settings,
-      onDidReceiveNotificationResponse: (NotificationResponse r) async {
-        final payload = r.payload;
-        if (payload != null && payload.startsWith('task:')) {
-          final id = int.tryParse(payload.split(':').last);
-          if (id != null) {
-            final task = await _db.taskDao.getTaskById(id);
-            if (task != null) {
-              _navigatorKey.currentState?.push(
-                MaterialPageRoute(builder: (_) => TaskDetailScreen(task: task)),
-              );
-            }
-          }
-        }
-      },
+      onDidReceiveNotificationResponse: _handleNotificationResponse,
     );
+  }
 
-    // Android 13+: request for permission to send notifications
+  Future<void> _handleNotificationResponse(NotificationResponse response) async {
+    final payload = response.payload;
+    if (payload != null && payload.startsWith('task:')) {
+      final id = int.tryParse(payload.split(':').last);
+      if (id != null) {
+        final task = await _db.taskDao.getTaskById(id);
+        if (task != null) {
+          _navigatorKey.currentState?.push(
+            MaterialPageRoute(builder: (_) => TaskDetailScreen(task: task)),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _requestPermissions() async {
+    // Android permissions
     final androidImpl = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     await androidImpl?.requestNotificationsPermission();
-
-    // Android 14+: if you want accurate alarms
     await androidImpl?.requestExactAlarmsPermission();
 
-    // iOS/macOS: permissions
-    await _plugin
-        .resolvePlatformSpecificImplementation<
-            IOSFlutterLocalNotificationsPlugin>()
-        ?.requestPermissions(alert: true, badge: true, sound: true);
-    await _plugin
-        .resolvePlatformSpecificImplementation<
-            MacOSFlutterLocalNotificationsPlugin>()
-        ?.requestPermissions(alert: true, badge: true, sound: true);
+    // iOS/macOS permissions
+    final iosImpl = _plugin.resolvePlatformSpecificImplementation<
+        IOSFlutterLocalNotificationsPlugin>();
+    await iosImpl?.requestPermissions(alert: true, badge: true, sound: true);
 
-    _initialized = true;
+    final macosImpl = _plugin.resolvePlatformSpecificImplementation<
+        MacOSFlutterLocalNotificationsPlugin>();
+    await macosImpl?.requestPermissions(alert: true, badge: true, sound: true);
   }
 
-  NotificationDetails _details() {
+  NotificationDetails _getNotificationDetails() {
     const android = AndroidNotificationDetails(
-      channelId,
-      channelName,
-      channelDescription: channelDescription,
+      AppConstants.notificationChannelId,
+      AppConstants.notificationChannelName,
+      channelDescription: AppConstants.notificationChannelDescription,
       importance: Importance.high,
       priority: Priority.high,
       category: AndroidNotificationCategory.reminder,
@@ -109,60 +110,77 @@ class NotificationService {
       presentSound: true,
       presentBadge: true,
     );
-    return const NotificationDetails(android: android, iOS: darwin, macOS: darwin);
+    return const NotificationDetails(
+      android: android,
+      iOS: darwin,
+      macOS: darwin,
+    );
   }
 
-  // 12:00 (noon) the day before the deadline; in test mode: +1 min
   tz.TZDateTime _computeScheduleTime(Task task) {
     final now = tz.TZDateTime.now(tz.local);
 
     if (testMode) {
-      return now.add(const Duration(minutes: 1));
+      return now.add(AppConstants.testNotificationDelay);
     }
 
-    final dlLocal = tz.TZDateTime.from(task.deadline, tz.local);
-    final midnightOfDeadline =
-        tz.TZDateTime(tz.local, dlLocal.year, dlLocal.month, dlLocal.day);
+    return _computeProductionScheduleTime(task, now);
+  }
 
-    // The day before at 12:00 p.m.
-    var at = midnightOfDeadline
+  tz.TZDateTime _computeProductionScheduleTime(Task task, tz.TZDateTime now) {
+    final dlLocal = tz.TZDateTime.from(task.deadline, tz.local);
+    final midnightOfDeadline = tz.TZDateTime(
+      tz.local,
+      dlLocal.year,
+      dlLocal.month,
+      dlLocal.day,
+    );
+
+    // Day before at 12:00 PM
+    var scheduledTime = midnightOfDeadline
         .subtract(const Duration(days: 1))
         .add(const Duration(hours: 12));
 
-    // If it has already passed, try 30 minutes from now (if it is still before the deadline).
-    if (at.isBefore(now.add(const Duration(seconds: 5)))) {
-      final fallback = now.add(const Duration(minutes: 30));
+    // If already passed, try fallback
+    if (scheduledTime.isBefore(now.add(const Duration(seconds: 5)))) {
+      final fallback = now.add(AppConstants.notificationFallbackDelay);
       if (fallback.isBefore(midnightOfDeadline)) {
-        at = fallback;
+        scheduledTime = fallback;
       } else {
         return tz.TZDateTime.fromMillisecondsSinceEpoch(tz.local, 0);
       }
     }
-    return at;
+
+    return scheduledTime;
   }
 
   Future<void> scheduleReminderForTask(Task task) async {
-    if (!_initialized) return;
-    if (task.completedAt != null) return;
+    if (!_initialized || task.completedAt != null) return;
 
     final when = _computeScheduleTime(task);
     if (when.millisecondsSinceEpoch <= 0) return;
 
-    final dateText = DateFormat('dd-MM-yyyy').format(task.deadline);
-    final title = 'Przypomnienie: ${task.title}';
-    final body = testMode
-        ? 'Powiadomienie testowe (1 min po dodaniu).'
-        : 'Jutro termin: $dateText';
+    final (title, body) = _getNotificationContent(task);
 
     await _plugin.zonedSchedule(
-      task.id, // we use the task ID as the notification ID
+      task.id,
       title,
       body,
       when,
-      _details(),
+      _getNotificationDetails(),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       payload: 'task:${task.id}',
     );
+  }
+
+  (String title, String body) _getNotificationContent(Task task) {
+    final dateText = DateFormat(AppConstants.dateFormat).format(task.deadline);
+    final title = '${AppStrings.reminderPrefix}${task.title}';
+    final body = testMode
+        ? AppStrings.testNotificationBody
+        : '${AppStrings.tomorrowDeadline}$dateText';
+    
+    return (title, body);
   }
 
   Future<void> cancelReminder(int taskId) async {
@@ -176,13 +194,14 @@ class NotificationService {
 
   Future<void> scheduleMissingRemindersForIncompleteTasks() async {
     if (!_initialized) return;
+
     final tasks = await _db.taskDao.getIncompleteTasks();
     final pending = await _plugin.pendingNotificationRequests();
     final pendingIds = pending.map((e) => e.id).toSet();
 
-    for (final t in tasks) {
-      if (!pendingIds.contains(t.id)) {
-        await scheduleReminderForTask(t);
+    for (final task in tasks) {
+      if (!pendingIds.contains(task.id)) {
+        await scheduleReminderForTask(task);
       }
     }
   }

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_task_manager/database/database.dart';
+import 'package:drift/drift.dart' hide Column;
 import 'package:intl/intl.dart';
 import 'package:material_symbols_icons/symbols.dart';
+
+import '../core/constants.dart';
 import '../cubit/task_cubit.dart';
-import 'package:drift/drift.dart' hide Column;
+import '../database/database.dart';
 
 enum TaskMode { add, edit }
 
@@ -12,11 +14,14 @@ class AddingEditingTask extends StatefulWidget {
   final TaskMode mode;
   final Task? task;
 
-  const AddingEditingTask({super.key, required this.mode, this.task})
-    : assert(
-        mode == TaskMode.edit ? task != null : true,
-        'Task must be provided in edit mode',
-      );
+  const AddingEditingTask({
+    super.key,
+    required this.mode,
+    this.task,
+  }) : assert(
+          mode == TaskMode.edit ? task != null : true,
+          'Task must be provided in edit mode',
+        );
 
   @override
   State<AddingEditingTask> createState() => _AddingEditingTaskState();
@@ -28,14 +33,21 @@ class _AddingEditingTaskState extends State<AddingEditingTask> {
   final _descriptionController = TextEditingController();
   DateTime? _selectedDate;
 
+  bool get _isEditMode => widget.mode == TaskMode.edit;
+
   @override
   void initState() {
     super.initState();
-    if (widget.mode == TaskMode.edit) {
-      _titleController.text = widget.task!.title;
-      _descriptionController.text = widget.task!.description ?? '';
-      _selectedDate = widget.task!.deadline;
+    if (_isEditMode) {
+      _initializeEditMode();
     }
+  }
+
+  void _initializeEditMode() {
+    final task = widget.task!;
+    _titleController.text = task.title;
+    _descriptionController.text = task.description ?? '';
+    _selectedDate = task.deadline;
   }
 
   @override
@@ -60,130 +72,157 @@ class _AddingEditingTaskState extends State<AddingEditingTask> {
     }
   }
 
-void _submitForm() {
-  if (_formKey.currentState!.validate() && _selectedDate != null) {
-    final description = _descriptionController.text.trim().isEmpty
-        ? null
-        : _descriptionController.text.trim();
+  String? _getDescription() {
+    final text = _descriptionController.text.trim();
+    return text.isEmpty ? null : text;
+  }
 
-    if (widget.mode == TaskMode.edit) {
-      final updatedTask = widget.task!.copyWith(
-        title: _titleController.text,
-        description: Value(description),
-        deadline: _selectedDate!,
-      );
-      context.read<TasksCubit>().updateTask(updatedTask);
-      Navigator.of(context).popUntil((route) => route.isFirst);
+  void _submitForm() {
+    if (!_formKey.currentState!.validate() || _selectedDate == null) {
+      return;
+    }
+
+    final cubit = context.read<TasksCubit>();
+
+    if (_isEditMode) {
+      _updateTask(cubit);
     } else {
-      context.read<TasksCubit>().addTask(
-        _titleController.text,
-        _selectedDate!,
-        description,
-      );
-      Navigator.of(context).pop();
+      _addTask(cubit);
     }
   }
-}
+
+  void _updateTask(TasksCubit cubit) {
+    final updatedTask = widget.task!.copyWith(
+      title: _titleController.text,
+      description: Value(_getDescription()),
+      deadline: _selectedDate!,
+    );
+    
+    cubit.updateTask(updatedTask);
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
+  void _addTask(TasksCubit cubit) {
+    cubit.addTask(
+      _titleController.text,
+      _selectedDate!,
+      _getDescription(),
+    );
+    Navigator.of(context).pop();
+  }
+
+  Widget _buildTitleField() {
+    return Container(
+      margin: const EdgeInsets.only(left: AppConstants.spacingHuge),
+      child: TextFormField(
+        controller: _titleController,
+        style: Theme.of(context).textTheme.headlineMedium,
+        decoration: const InputDecoration(
+          hintText: AppStrings.taskTitleHint,
+          border: InputBorder.none,
+        ),
+        validator: (value) {
+          if (value == null || value.isEmpty) {
+            return AppStrings.taskTitleRequired;
+          }
+          return null;
+        },
+      ),
+    );
+  }
+
+  Widget _buildDateSelector() {
+    return InkWell(
+      onTap: () => _selectDate(context),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppConstants.paddingSmall),
+        child: Row(
+          spacing: AppConstants.spacingDefault,
+          children: [
+            IconTheme(
+              data: IconThemeData(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              child: const Icon(Icons.calendar_month),
+            ),
+            Text(
+              _selectedDate == null
+                  ? AppStrings.selectDate
+                  : DateFormat(AppConstants.dateFormat).format(_selectedDate!),
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDescriptionField() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppConstants.paddingSmall),
+      child: Row(
+        spacing: AppConstants.spacingDefault,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 12.0),
+            child: IconTheme(
+              data: IconThemeData(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              child: const Icon(Symbols.description),
+            ),
+          ),
+          Expanded(
+            child: TextFormField(
+              controller: _descriptionController,
+              style: Theme.of(context).textTheme.bodyLarge,
+              maxLines: null,
+              keyboardType: TextInputType.multiline,
+              decoration: InputDecoration(
+                hintText: AppStrings.addDetails,
+                hintStyle: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                border: InputBorder.none,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.mode == TaskMode.edit ? 'Edytuj zadanie' : 'Dodaj zadanie',
+          _isEditMode ? AppStrings.editTaskTitle : AppStrings.addTaskTitle,
         ),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 16.0),
+            padding: const EdgeInsets.only(right: AppConstants.paddingDefault),
             child: FilledButton(
               onPressed: _submitForm,
-              child: Text(widget.mode == TaskMode.edit ? 'Zapisz' : 'Dodaj'),
+              child: Text(
+                _isEditMode ? AppStrings.saveButton : AppStrings.addButton,
+              ),
             ),
           ),
         ],
       ),
       body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        padding: const EdgeInsets.symmetric(horizontal: AppConstants.paddingDefault),
         child: Form(
           key: _formKey,
           child: Column(
-            spacing: 16.0,
+            spacing: AppConstants.spacingDefault,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                margin: const EdgeInsets.only(left: 38.0),
-                child: TextFormField(
-                  controller: _titleController,
-                  style: Theme.of(context).textTheme.headlineMedium,
-                  decoration: const InputDecoration(
-                    hintText: 'Tytuł zadania',
-                    border: InputBorder.none,
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Proszę wpisać tytuł zadania';
-                    }
-                    return null;
-                  },
-                ),
-              ),
-              InkWell(
-                onTap: () => _selectDate(context),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                  child: Row(
-                    spacing: 16.0,
-                    children: [
-                      IconTheme(
-                        data: IconThemeData(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                        child: const Icon(Icons.calendar_month),
-                      ),
-                      Text(
-                        style: Theme.of(context).textTheme.bodyLarge,
-                        _selectedDate == null
-                            ? 'Wybierz datę'
-                            : DateFormat('dd-MM-yyyy').format(_selectedDate!),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              // const Divider(height: 0,),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Row(
-                  spacing: 16.0,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12.0),
-                      child: IconTheme(
-                        data: IconThemeData(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                        child: const Icon(Symbols.description),
-                      ),
-                    ),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _descriptionController,
-                        style: Theme.of(context).textTheme.bodyLarge,
-                        maxLines: null,
-                        keyboardType: TextInputType.multiline,
-                        decoration: InputDecoration(
-                          hintText: 'Dodaj szczegóły',
-                          hintStyle: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                          border: InputBorder.none,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              _buildTitleField(),
+              _buildDateSelector(),
+              _buildDescriptionField(),
             ],
           ),
         ),

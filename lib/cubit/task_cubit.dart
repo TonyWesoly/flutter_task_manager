@@ -3,52 +3,46 @@ import 'package:drift/drift.dart';
 import '../database/database.dart';
 import '../services/notification_service.dart';
 
-abstract class TasksState {}
-
-class TasksInitial extends TasksState {}
-
-class TasksLoading extends TasksState {}
-
-class TasksLoaded extends TasksState {
-  final List<Task> tasks;
-  TasksLoaded(this.tasks);
-}
-
-class TasksError extends TasksState {
-  final String message;
-  TasksError(this.message);
-}
-
-class StatisticsLoaded extends TasksState {
-  final Map<DateTime, int> statistics;
-  final int weekOffset;
-  final int totalCompleted;
-  
-  StatisticsLoaded({
-    required this.statistics,
-    required this.weekOffset,
-    required this.totalCompleted,
-  });
-}
+part 'task_states.dart';
 
 class TasksCubit extends Cubit<TasksState> {
   final AppDatabase database;
   final NotificationService notifications;
 
-  TasksCubit({required this.database, required this.notifications})
-      : super(TasksInitial());
+  TasksCubit({
+    required this.database,
+    required this.notifications,
+  }) : super(TasksInitial());
 
-  void loadTasks() async {
+  Future<void> _loadTasksWithErrorHandling(
+    Future<List<Task>> Function() loader,
+  ) async {
     emit(TasksLoading());
     try {
-      final tasks = await database.taskDao.getAllTasks();
+      final tasks = await loader();
       emit(TasksLoaded(tasks));
     } catch (e) {
       emit(TasksError(e.toString()));
     }
   }
 
-  void addTask(String title, DateTime deadline, [String? description]) async {
+  void loadTasks() => _loadTasksWithErrorHandling(
+        () => database.taskDao.getAllTasks(),
+      );
+
+  void loadIncompleteTasks() => _loadTasksWithErrorHandling(
+        () => database.taskDao.getIncompleteTasks(),
+      );
+
+  void loadCompletedTasks() => _loadTasksWithErrorHandling(
+        () => database.taskDao.getCompletedTasks(),
+      );
+
+  Future<void> addTask(
+    String title,
+    DateTime deadline, [
+    String? description,
+  ]) async {
     try {
       final id = await database.taskDao.insertTask(
         TasksCompanion(
@@ -58,14 +52,20 @@ class TasksCubit extends Cubit<TasksState> {
         ),
       );
 
-      final task = await database.taskDao.getTaskById(id);
-      if (task != null) {
-        await notifications.scheduleReminderForTask(task);
-      }
-
+      await _scheduleNotificationForTask(id);
       loadIncompleteTasks();
     } catch (e) {
-      emit(TasksError('Failed to add task: ${e.toString()}'));
+      emit(TasksError('Failed to add task: $e'));
+    }
+  }
+
+  Future<void> updateTask(Task task) async {
+    try {
+      await database.taskDao.updateTask(task);
+      await notifications.rescheduleReminderForTask(task);
+      loadIncompleteTasks();
+    } catch (e) {
+      emit(TasksError('Failed to update task: $e'));
     }
   }
 
@@ -75,16 +75,12 @@ class TasksCubit extends Cubit<TasksState> {
       final task = await database.taskDao.getTaskById(id);
 
       if (task != null) {
-        if (task.completedAt != null) {
-          await notifications.cancelReminder(id);
-        } else {
-          await notifications.scheduleReminderForTask(task);
-        }
+        await _handleTaskNotification(task);
       }
 
       loadIncompleteTasks();
     } catch (e) {
-      emit(TasksError('Failed to toggle task: ${e.toString()}'));
+      emit(TasksError('Failed to toggle task: $e'));
     }
   }
 
@@ -94,83 +90,72 @@ class TasksCubit extends Cubit<TasksState> {
       await database.taskDao.deleteTask(id);
       loadIncompleteTasks();
     } catch (e) {
-      emit(TasksError('Failed to delete task: ${e.toString()}'));
+      emit(TasksError('Failed to delete task: $e'));
+    }
+  }
+
+  Future<void> _processBatchOperation(
+    List<int> ids,
+    Future<void> Function(int id) operation,
+    void Function() onComplete,
+    String errorMessage,
+  ) async {
+    try {
+      for (final id in ids) {
+        await operation(id);
+      }
+      onComplete();
+    } catch (e) {
+      emit(TasksError('$errorMessage: $e'));
     }
   }
 
   Future<void> deleteMultipleTasks(List<int> ids) async {
-    try {
-      for (final id in ids) {
+    await _processBatchOperation(
+      ids,
+      (id) async {
         await notifications.cancelReminder(id);
         await database.taskDao.deleteTask(id);
-      }
-      loadIncompleteTasks();
-    } catch (e) {
-      emit(TasksError('Failed to delete tasks: ${e.toString()}'));
-    }
+      },
+      loadIncompleteTasks,
+      'Failed to delete tasks',
+    );
   }
 
   Future<void> completeMultipleTasks(List<int> ids) async {
-    try {
-      for (final id in ids) {
+    await _processBatchOperation(
+      ids,
+      (id) async {
         await database.taskDao.toggleTask(id);
         await notifications.cancelReminder(id);
-      }
-      loadIncompleteTasks();
-    } catch (e) {
-      emit(TasksError('Failed to complete tasks: ${e.toString()}'));
-    }
+      },
+      loadIncompleteTasks,
+      'Failed to complete tasks',
+    );
   }
 
   Future<void> restoreMultipleTasks(List<int> ids) async {
-    try {
-      for (final id in ids) {
+    await _processBatchOperation(
+      ids,
+      (id) async {
         await database.taskDao.toggleTask(id);
-        final task = await database.taskDao.getTaskById(id);
-        if (task != null) {
-          await notifications.scheduleReminderForTask(task);
-        }
-      }
-      loadCompletedTasks();
-    } catch (e) {
-      emit(TasksError('Failed to restore tasks: ${e.toString()}'));
-    }
+        await _scheduleNotificationForTask(id);
+      },
+      loadCompletedTasks,
+      'Failed to restore tasks',
+    );
   }
 
   Future<void> deleteMultipleCompletedTasks(List<int> ids) async {
-    try {
-      for (final id in ids) {
-        await database.taskDao.deleteTask(id);
-      }
-      loadCompletedTasks();
-    } catch (e) {
-      emit(TasksError('Failed to delete tasks: ${e.toString()}'));
-    }
+    await _processBatchOperation(
+      ids,
+      (id) => database.taskDao.deleteTask(id),
+      loadCompletedTasks,
+      'Failed to delete tasks',
+    );
   }
 
-  void loadIncompleteTasks() async {
-    emit(TasksLoading());
-    try {
-      final tasks = await database.taskDao.getIncompleteTasks();
-      emit(TasksLoaded(tasks));
-    } catch (e) {
-      emit(TasksError(e.toString()));
-    }
-  }
-
-  void loadCompletedTasks() async {
-    emit(TasksLoading());
-    try {
-      final tasks = await database.taskDao.getCompletedTasks();
-      emit(TasksLoaded(tasks));
-    } catch (e) {
-      emit(TasksError(e.toString()));
-    }
-  }
-
-  void loadStatistics() async {
-    loadWeekStatistics(0);
-  }
+  void loadStatistics() => loadWeekStatistics(0);
 
   void loadWeekStatistics(int weekOffset) async {
     emit(TasksLoading());
@@ -187,13 +172,18 @@ class TasksCubit extends Cubit<TasksState> {
     }
   }
 
-  Future<void> updateTask(Task task) async {
-    try {
-      await database.taskDao.updateTask(task);
-      await notifications.rescheduleReminderForTask(task);
-      loadIncompleteTasks();
-    } catch (e) {
-      emit(TasksError('Failed to update task: ${e.toString()}'));
+  Future<void> _scheduleNotificationForTask(int id) async {
+    final task = await database.taskDao.getTaskById(id);
+    if (task != null) {
+      await notifications.scheduleReminderForTask(task);
+    }
+  }
+
+  Future<void> _handleTaskNotification(Task task) async {
+    if (task.completedAt != null) {
+      await notifications.cancelReminder(task.id);
+    } else {
+      await notifications.scheduleReminderForTask(task);
     }
   }
 }

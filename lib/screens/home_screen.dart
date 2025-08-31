@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'current_tasks_screen.dart';
-import 'completed_tasks_screen.dart';
-import 'statistics_screen.dart';
-import '../cubit/task_cubit.dart';
 import 'package:material_symbols_icons/symbols.dart';
+
+import '../core/constants.dart';
+import '../cubit/task_cubit.dart';
+import '../widgets/confirmation_dialog.dart';
+import 'completed_tasks_screen.dart';
+import 'current_tasks_screen.dart';
+import 'statistics_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,10 +20,17 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   bool _isSelectionMode = false;
   Set<int> _selectedTaskIds = {};
+  
   final GlobalKey<CurrentTasksScreenState> _currentTasksKey = GlobalKey();
   final GlobalKey<CompletedTasksScreenState> _completedTasksKey = GlobalKey();
 
   late final List<Widget> _screens;
+  
+  static const List<String> _titles = [
+    AppStrings.currentTasksTitle,
+    AppStrings.completedTasksTitle,
+    AppStrings.statisticsTitle,
+  ];
 
   @override
   void initState() {
@@ -36,7 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
         onSelectionModeChanged: _handleSelectionModeChanged,
         onSelectedTasksChanged: _handleSelectedTasksChanged,
       ),
-      StatisticsScreen(),
+      const StatisticsScreen(),
     ];
   }
 
@@ -61,18 +71,15 @@ class _HomeScreenState extends State<HomeScreen> {
       _selectedTaskIds.clear();
     });
 
-    if (_currentIndex == 0) {
-      _currentTasksKey.currentState?.exitSelectionMode();
-    } else if (_currentIndex == 1) {
-      _completedTasksKey.currentState?.exitSelectionMode();
+    switch (_currentIndex) {
+      case 0:
+        _currentTasksKey.currentState?.exitSelectionMode();
+        break;
+      case 1:
+        _completedTasksKey.currentState?.exitSelectionMode();
+        break;
     }
   }
-
-  final List<String> _titles = [
-    'Obecne zadania',
-    'Wykonane zadania',
-    'Statystyki',
-  ];
 
   void _onTabTapped(int index) {
     if (_isSelectionMode) {
@@ -83,6 +90,10 @@ class _HomeScreenState extends State<HomeScreen> {
       _currentIndex = index;
     });
 
+    _loadDataForTab(index);
+  }
+
+  void _loadDataForTab(int index) {
     final cubit = context.read<TasksCubit>();
     switch (index) {
       case 0:
@@ -108,114 +119,102 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _handleDeleteSelected() {
-    showDialog(
+    ConfirmationDialog.show(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Usunąć zaznaczone zadania?'),
-        content: Text('Zostanie usuniętych ${_selectedTaskIds.length} zadań.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Anuluj'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              if (_currentIndex == 0) {
-                context.read<TasksCubit>().deleteMultipleTasks(
-                  _selectedTaskIds.toList(),
-                );
-              } else {
-                context.read<TasksCubit>().deleteMultipleCompletedTasks(
-                  _selectedTaskIds.toList(),
-                );
-              }
-              _exitSelectionMode();
-            },
-            child: Text(
-              'Usuń',
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
+      title: AppStrings.deleteMultipleTasksTitle,
+      content: 'Zostanie usuniętych ${_selectedTaskIds.length} zadań.',
+      confirmText: AppStrings.deleteButton,
+      confirmTextColor: Theme.of(context).colorScheme.error,
+      onConfirm: () {
+        final cubit = context.read<TasksCubit>();
+        if (_currentIndex == 0) {
+          cubit.deleteMultipleTasks(_selectedTaskIds.toList());
+        } else {
+          cubit.deleteMultipleCompletedTasks(_selectedTaskIds.toList());
+        }
+        _exitSelectionMode();
+      },
+    );
+  }
+
+PreferredSizeWidget _buildSelectionAppBar() {
+  return AppBar(
+    title: Text('${AppStrings.selectedCount}${_selectedTaskIds.length}'),
+    leading: IconButton(
+      icon: const Icon(Icons.close),
+      onPressed: _exitSelectionMode,
+    ),
+  );
+}
+
+PreferredSizeWidget _buildNormalAppBar() {
+  return AppBar(
+    title: Text(_titles[_currentIndex]),
+  );
+}
+
+  Widget _buildSelectionBottomBar() {
+    return BottomAppBar(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          if (_currentIndex == 0)
+            IconButton(
+              icon: const Icon(Icons.check_circle_outline),
+              onPressed: _selectedTaskIds.isEmpty ? null : _handleCompleteSelected,
+              tooltip: AppStrings.markAsCompleteTooltip,
+            )
+          else if (_currentIndex == 1)
+            IconButton(
+              icon: const Icon(Icons.undo),
+              onPressed: _selectedTaskIds.isEmpty ? null : _handleRestoreSelected,
+              tooltip: AppStrings.restoreTooltip,
             ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            onPressed: _selectedTaskIds.isEmpty ? null : _handleDeleteSelected,
+            tooltip: AppStrings.deleteTooltip,
           ),
         ],
       ),
     );
   }
 
+  Widget _buildNavigationBar() {
+    return NavigationBar(
+      destinations: const [
+        NavigationDestination(
+          icon: Icon(Symbols.view_list),
+          selectedIcon: Icon(Symbols.view_list, fill: 1),
+          label: 'Obecne',
+        ),
+        NavigationDestination(
+          icon: Icon(Symbols.check_box),
+          selectedIcon: Icon(Symbols.check_box, fill: 1),
+          label: 'Wykonane',
+        ),
+        NavigationDestination(
+          icon: Icon(Symbols.insert_chart),
+          selectedIcon: Icon(Symbols.insert_chart, fill: 1),
+          label: 'Statystyki',
+        ),
+      ],
+      selectedIndex: _currentIndex,
+      onDestinationSelected: _onTabTapped,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          _isSelectionMode
-              ? 'Zaznaczono: ${_selectedTaskIds.length}'
-              : _titles[_currentIndex],
-        ),
-        leading: _isSelectionMode
-            ? IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: _exitSelectionMode,
-              )
-            : null,
+      appBar: _isSelectionMode ? _buildSelectionAppBar() : _buildNormalAppBar(),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _screens,
       ),
-      body: Stack(
-        children: [IndexedStack(index: _currentIndex, children: _screens)],
-      ),
-      bottomNavigationBar: _isSelectionMode
-          ? BottomAppBar(
-              // height: 64,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  if (_currentIndex == 0) ...[
-                    IconButton(
-                      icon: const Icon(Icons.check_circle_outline),
-                      onPressed: _selectedTaskIds.isEmpty
-                          ? null
-                          : _handleCompleteSelected,
-                      tooltip: 'Oznacz jako wykonane',
-                    ),
-                  ] else if (_currentIndex == 1) ...[
-                    IconButton(
-                      icon: const Icon(Icons.undo),
-                      onPressed: _selectedTaskIds.isEmpty
-                          ? null
-                          : _handleRestoreSelected,
-                      tooltip: 'Przywróć',
-                    ),
-                  ],
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: _selectedTaskIds.isEmpty
-                        ? null
-                        : _handleDeleteSelected,
-                    tooltip: 'Usuń',
-                  ),
-                ],
-              ),
-            )
-          : NavigationBar(
-              destinations: [
-                NavigationDestination(
-                  icon: Icon(Symbols.view_list),
-                  selectedIcon: Icon(Symbols.view_list, fill: 1),
-                  label: 'Obecne',
-                ),
-                NavigationDestination(
-                  icon: Icon(Symbols.check_box),
-                  selectedIcon: Icon(Symbols.check_box, fill: 1),
-                  label: 'Wykonane',
-                ),
-                NavigationDestination(
-                  icon: Icon(Symbols.insert_chart),
-                  selectedIcon: Icon(Symbols.insert_chart, fill: 1),
-                  label: 'Statystyki',
-                ),
-              ],
-              selectedIndex: _currentIndex,
-              onDestinationSelected: _onTabTapped,
-            ),
-
+      bottomNavigationBar: _isSelectionMode 
+          ? _buildSelectionBottomBar() 
+          : _buildNavigationBar(),
     );
   }
 }

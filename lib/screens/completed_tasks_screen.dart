@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_task_manager/screens/task_detail_screen.dart';
 import 'package:intl/intl.dart';
-import 'package:material_symbols_icons/symbols.dart';
+
+import '../core/constants.dart';
 import '../cubit/task_cubit.dart';
 import '../database/database.dart';
+import '../mixins/selection_mode_mixin.dart';
+import '../widgets/confirmation_dialog.dart';
+import '../widgets/empty_state_widget.dart';
+import '../widgets/selection_icon.dart';
+import '../widgets/task_list_tile.dart';
+import 'task_detail_screen.dart';
 
 class CompletedTasksScreen extends StatefulWidget {
   final Function(bool) onSelectionModeChanged;
@@ -20,64 +26,76 @@ class CompletedTasksScreen extends StatefulWidget {
   State<CompletedTasksScreen> createState() => CompletedTasksScreenState();
 }
 
-class CompletedTasksScreenState extends State<CompletedTasksScreen> {
-  bool _isSelectionMode = false;
-  Set<int> _selectedTaskIds = {};
-
-  void _enterSelectionMode(int firstTaskId) {
-    setState(() {
-      _isSelectionMode = true;
-      _selectedTaskIds = {firstTaskId};
-    });
-    widget.onSelectionModeChanged(true);
-    widget.onSelectedTasksChanged(_selectedTaskIds);
+class CompletedTasksScreenState extends State<CompletedTasksScreen>
+    with SelectionModeMixin {
+  void _handleTaskTap(Task task) {
+    if (isSelectionMode) {
+      toggleSelection(
+        task.id,
+        onSelectedIdsChanged: widget.onSelectedTasksChanged,
+      );
+    } else {
+      _navigateToTaskDetail(task);
+    }
   }
 
-  void exitSelectionMode() {
-    setState(() {
-      _isSelectionMode = false;
-      _selectedTaskIds.clear();
-    });
+  void _handleTaskLongPress(Task task) {
+    if (!isSelectionMode) {
+      enterSelectionMode(
+        task.id,
+        onSelectionModeChanged: widget.onSelectionModeChanged,
+        onSelectedIdsChanged: widget.onSelectedTasksChanged,
+      );
+    }
   }
 
-  void _toggleTaskSelection(int taskId) {
-    setState(() {
-      if (_selectedTaskIds.contains(taskId)) {
-        _selectedTaskIds.remove(taskId);
-      } else {
-        _selectedTaskIds.add(taskId);
-      }
-    });
-    widget.onSelectedTasksChanged(_selectedTaskIds);
+  void _navigateToTaskDetail(Task task) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => BlocProvider.value(
+          value: context.read<TasksCubit>(),
+          child: TaskDetailScreen(task: task, isFromCompletedScreen: true),
+        ),
+      ),
+    );
   }
 
-  void _showUndoDialog(BuildContext context, Task task) {
-    showDialog(
+  void _showUndoDialog(Task task) {
+    ConfirmationDialog.show(
       context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Przywrócić zadanie?'),
-          content: Text(
-            'Czy chcesz oznaczyć "${task.title}" jako nieukończone?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Anuluj'),
-            ),
-            TextButton(
-              onPressed: () async {
-                Navigator.of(dialogContext).pop();
-                if (!context.mounted) return;
-                await context.read<TasksCubit>().toggleTask(task.id);
-                if (!context.mounted) return;
-                context.read<TasksCubit>().loadCompletedTasks();
-              },
-              child: const Text('Przywróć'),
-            ),
-          ],
-        );
+      title: AppStrings.restoreTaskTitle,
+      content: 'Czy chcesz oznaczyć "${task.title}" jako nieukończone?',
+      confirmText: AppStrings.restoreButton,
+      onConfirm: () async {
+        final cubit = context.read<TasksCubit>();
+        await cubit.toggleTask(task.id);
+        if (!mounted) return;
+        cubit.loadCompletedTasks();
       },
+    );
+  }
+
+  Widget _buildTaskItem(Task task) {
+    final isSelected = selectedIds.contains(task.id);
+
+    return TaskListTile(
+      task: task,
+      isSelected: isSelected,
+      leading: isSelectionMode
+          ? SelectionIcon(
+              isSelected: isSelected,
+              onPressed: () => toggleSelection(
+                task.id,
+                onSelectedIdsChanged: widget.onSelectedTasksChanged,
+              ),
+            )
+          : Checkbox(value: true, onChanged: (_) => _showUndoDialog(task)),
+      trailing: Text(
+        '${AppStrings.completedPrefix}${DateFormat(AppConstants.monthDayFormat, AppConstants.defaultLocale).format(task.completedAt!)}',
+        style: Theme.of(context).textTheme.labelSmall,
+      ),
+      onTap: () => _handleTaskTap(task),
+      onLongPress: () => _handleTaskLongPress(task),
     );
   }
 
@@ -87,102 +105,27 @@ class CompletedTasksScreenState extends State<CompletedTasksScreen> {
       builder: (context, state) {
         if (state is TasksLoading) {
           return const Center(child: CircularProgressIndicator());
-        } else if (state is TasksLoaded) {
-          final tasks = state.tasks;
-          if (tasks.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.check_circle_outline,
-                    size: 64,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Brak wykonanych zadań',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ],
-              ),
+        }
+
+        if (state is TasksLoaded) {
+          if (state.tasks.isEmpty) {
+            return const EmptyStateWidget(
+              icon: Icons.check_circle_outline,
+              message: AppStrings.noCompletedTasks,
             );
           }
 
           return ListView.builder(
-            itemCount: tasks.length,
-            itemBuilder: (context, index) {
-              final task = tasks[index];
-              final isSelected = _selectedTaskIds.contains(task.id);
-
-              return ListTile(
-                tileColor: isSelected
-                    ? Theme.of(
-                        context,
-                      ).colorScheme.primaryContainer.withValues(alpha: 0.3)
-                    : null,
-                leading: _isSelectionMode
-                    ? IconButton(
-                        icon: isSelected
-                            ? Icon(
-                                Symbols.check_circle,
-                                color: Theme.of(context).colorScheme.primary,
-                                fill: 1.0,
-                              )
-                            : Icon(Symbols.circle),
-                        onPressed: () => _toggleTaskSelection(task.id),
-                        padding: EdgeInsets.zero,
-                      )
-                    : Checkbox(
-                        value: true,
-                        onChanged: (value) => _showUndoDialog(context, task),
-                      ),
-                title: Text(
-                  task.title,
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
-                subtitle:
-                    task.description != null && task.description!.isNotEmpty
-                    ? Text(
-                        task.description!,
-                        style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      )
-                    : null,
-                trailing: Text(
-                  'Ukończono: ${DateFormat('d MMMM', 'pl_PL').format(task.completedAt!)}',
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
-                onLongPress: () {
-                  if (!_isSelectionMode) {
-                    _enterSelectionMode(task.id);
-                  }
-                },
-                onTap: () {
-                  if (_isSelectionMode) {
-                    _toggleTaskSelection(task.id);
-                  } else {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => BlocProvider.value(
-                          value: context.read<TasksCubit>(),
-                          child: TaskDetailScreen(
-                            task: task,
-                            isFromCompletedScreen: true,
-                          ),
-                        ),
-                      ),
-                    );
-                  }
-                },
-              );
-            },
+            itemCount: state.tasks.length,
+            itemBuilder: (context, index) => _buildTaskItem(state.tasks[index]),
           );
-        } else if (state is TasksError) {
+        }
+
+        if (state is TasksError) {
           return Center(child: Text('Błąd: ${state.message}'));
         }
-        return const Center(child: Text('Ładowanie...'));
+
+        return const Center(child: Text(AppStrings.loadingText));
       },
     );
   }
