@@ -1,6 +1,7 @@
 import 'package:bloc/bloc.dart';
 import 'package:drift/drift.dart';
 import '../database/database.dart';
+import '../services/notification_service.dart';
 
 abstract class TasksState {}
 
@@ -20,7 +21,10 @@ class TasksError extends TasksState {
 
 class TasksCubit extends Cubit<TasksState> {
   final AppDatabase database;
-  TasksCubit({required this.database}) : super(TasksInitial());
+  final NotificationService notifications;
+
+  TasksCubit({required this.database, required this.notifications})
+      : super(TasksInitial());
 
   void loadTasks() async {
     emit(TasksLoading());
@@ -34,9 +38,15 @@ class TasksCubit extends Cubit<TasksState> {
 
   void addTask(String title, DateTime deadline) async {
     try {
-      await database.taskDao.insertTask(
+      final id = await database.taskDao.insertTask(
         TasksCompanion(title: Value(title), deadline: Value(deadline)),
       );
+
+      final task = await database.taskDao.getTaskById(id);
+      if (task != null) {
+        await notifications.scheduleReminderForTask(task);
+      }
+
       loadIncompleteTasks();
     } catch (e) {
       emit(TasksError('Failed to update task: ${e.toString()}'));
@@ -46,6 +56,16 @@ class TasksCubit extends Cubit<TasksState> {
   Future<void> toggleTask(int id) async {
     try {
       await database.taskDao.toggleTask(id);
+      final task = await database.taskDao.getTaskById(id);
+
+      if (task != null) {
+        if (task.completedAt != null) {
+          await notifications.cancelReminder(id);
+        } else {
+          await notifications.scheduleReminderForTask(task);
+        }
+      }
+
       loadIncompleteTasks();
     } catch (e) {
       emit(TasksError('Failed to toggle task: ${e.toString()}'));
@@ -54,6 +74,7 @@ class TasksCubit extends Cubit<TasksState> {
 
   Future<void> deleteTask(int id) async {
     try {
+      await notifications.cancelReminder(id);
       await database.taskDao.deleteTask(id);
       loadIncompleteTasks();
     } catch (e) {
@@ -74,6 +95,7 @@ class TasksCubit extends Cubit<TasksState> {
   Future<void> updateTask(Task task) async {
     try {
       await database.taskDao.updateTask(task);
+      await notifications.rescheduleReminderForTask(task);
       loadIncompleteTasks();
     } catch (e) {
       emit(TasksError('Failed to update task: ${e.toString()}'));
