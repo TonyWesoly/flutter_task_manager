@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_task_manager/screens/adding_editing_task.dart';
 import 'package:intl/intl.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import '../cubit/task_cubit.dart';
 import '../database/database.dart';
 
@@ -75,12 +76,44 @@ class TaskDetailScreen extends StatelessWidget {
             ),
 
             if (task.description != null && task.description!.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 16.0),
-                child: Text(
-                  task.description!,
-                  style: Theme.of(context).textTheme.bodyLarge,
+            // Row(
+            //   spacing: 16.0,
+            //   children: [
+            //     IconTheme(
+            //       data: IconThemeData(
+            //         color: Theme.of(context).colorScheme.onSurfaceVariant,
+            //       ),
+            //       child: const Icon(Icons.calendar_month),
+            //     ),
+            //     Column(
+            //       children: [
+            //         Text(
+            //           DateFormat('dd-MM-yyyy').format(task.deadline),
+            //           style: Theme.of(context).textTheme.bodyLarge,
+            //         ),
+            //         if (task.completedAt != null)
+            //           Text(
+            //             'Ukończono: ${DateFormat('dd-MM-yyyy').format(task.completedAt!)}',
+            //             style: Theme.of(context).textTheme.bodyLarge,
+            //           ),
+            //       ],
+            //     ),
+            //   ],
+            // ),
+              Row(
+                spacing: 16.0,
+                children: [
+                  IconTheme(
+                  data: IconThemeData(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  child: const Icon(Symbols.description),
                 ),
+                  Text(
+                    task.description!,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                ],
               ),
           ],
         ),

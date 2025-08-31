@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_task_manager/database/database.dart';
 import 'package:intl/intl.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import '../cubit/task_cubit.dart';
+import 'package:drift/drift.dart' hide Column;
 
 enum TaskMode { add, edit }
 
@@ -58,30 +60,30 @@ class _AddingEditingTaskState extends State<AddingEditingTask> {
     }
   }
 
-  void _submitForm() {
-    if (_formKey.currentState!.validate() && _selectedDate != null) {
-      final description = _descriptionController.text.trim().isEmpty 
-          ? null 
-          : _descriptionController.text.trim();
+void _submitForm() {
+  if (_formKey.currentState!.validate() && _selectedDate != null) {
+    final description = _descriptionController.text.trim().isEmpty
+        ? null
+        : _descriptionController.text.trim();
 
-      if (widget.mode == TaskMode.edit) {
-        final updatedTask = widget.task!.copyWith(
-          title: _titleController.text,
-          description: description,
-          deadline: _selectedDate!,
-        );
-        context.read<TasksCubit>().updateTask(updatedTask);
-        Navigator.of(context).popUntil((route) => route.isFirst);
-      } else {
-        context.read<TasksCubit>().addTask(
-          _titleController.text,
-          _selectedDate!,
-          description,
-        );
-        Navigator.of(context).pop();
-      }
+    if (widget.mode == TaskMode.edit) {
+      final updatedTask = widget.task!.copyWith(
+        title: _titleController.text,
+        description: Value(description),
+        deadline: _selectedDate!,
+      );
+      context.read<TasksCubit>().updateTask(updatedTask);
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } else {
+      context.read<TasksCubit>().addTask(
+        _titleController.text,
+        _selectedDate!,
+        description,
+      );
+      Navigator.of(context).pop();
     }
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -148,7 +150,7 @@ class _AddingEditingTaskState extends State<AddingEditingTask> {
                   ),
                 ),
               ),
-              const Divider(),
+              // const Divider(height: 0,),
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8.0),
                 child: Row(
@@ -161,7 +163,7 @@ class _AddingEditingTaskState extends State<AddingEditingTask> {
                         data: IconThemeData(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
-                        child: const Icon(Icons.description),
+                        child: const Icon(Symbols.description),
                       ),
                     ),
                     Expanded(
@@ -173,7 +175,7 @@ class _AddingEditingTaskState extends State<AddingEditingTask> {
                         decoration: InputDecoration(
                           hintText: 'Dodaj szczegóły',
                           hintStyle: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.6),
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                           border: InputBorder.none,
                         ),

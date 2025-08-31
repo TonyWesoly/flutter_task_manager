@@ -51,7 +51,10 @@ class CurrentTasksScreen extends StatelessWidget {
                   ),
                   subtitle:
                       task.description != null && task.description!.isNotEmpty
-                      ? Text(task.description!)
+                      ? Text(task.description!,
+                        style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),)
                       : null,
                   trailing: Text(
                     DateFormat('d MMMM','pl_PL').format(task.deadline),

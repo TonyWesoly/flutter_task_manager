@@ -48,14 +48,18 @@ class CompletedTasksScreen extends StatelessWidget {
                 ),
                 subtitle:
                     task.description != null && task.description!.isNotEmpty
-                    ? Text(task.description!)
+                    ? Text(
+                        task.description!,
+                        style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      )
                     : null,
                 trailing: Text(
-                  'Ukończono: ${DateFormat('d MMMM','pl_PL').format(task.completedAt!)}',
+                  'Ukończono: ${DateFormat('d MMMM', 'pl_PL').format(task.completedAt!)}',
                   style: Theme.of(context).textTheme.labelSmall,
                 ),
               );
-
             },
           );
         } else if (state is TasksError) {
