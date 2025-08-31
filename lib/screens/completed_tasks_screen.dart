@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_task_manager/screens/task_detail_screen.dart';
 import 'package:intl/intl.dart';
 import '../cubit/task_cubit.dart';
 import '../database/database.dart';
@@ -59,6 +60,19 @@ class CompletedTasksScreen extends StatelessWidget {
                   'Ukończono: ${DateFormat('d MMMM', 'pl_PL').format(task.completedAt!)}',
                   style: Theme.of(context).textTheme.labelSmall,
                 ),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => BlocProvider.value(
+                        value: context.read<TasksCubit>(),
+                        child: TaskDetailScreen(
+                          task: task,
+                          isFromCompletedScreen: true,
+                        ),
+                      ),
+                    ),
+                  );
+                },
               );
             },
           );
@@ -92,33 +106,6 @@ class CompletedTasksScreen extends StatelessWidget {
                 });
               },
               child: const Text('Przywróć'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showDeleteDialog(BuildContext context, Task task) {
-    showDialog(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Usunąć zadanie?'),
-          content: Text('Czy na pewno chcesz usunąć "${task.title}"?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Anuluj'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-                context.read<TasksCubit>().deleteTask(task.id).then((_) {
-                  context.read<TasksCubit>().loadCompletedTasks();
-                });
-              },
-              child: const Text('Usuń'),
             ),
           ],
         );

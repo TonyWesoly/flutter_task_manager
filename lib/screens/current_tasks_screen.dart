@@ -51,13 +51,18 @@ class CurrentTasksScreen extends StatelessWidget {
                   ),
                   subtitle:
                       task.description != null && task.description!.isNotEmpty
-                      ? Text(task.description!,
-                        style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),)
+                      ? Text(
+                          task.description!,
+                          style: Theme.of(context).textTheme.bodyMedium!
+                              .copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                        )
                       : null,
                   trailing: Text(
-                    DateFormat('d MMMM','pl_PL').format(task.deadline),
+                    DateFormat('d MMMM', 'pl_PL').format(task.deadline),
                     style: Theme.of(context).textTheme.labelSmall,
                   ),
                   onTap: () {
@@ -65,7 +70,11 @@ class CurrentTasksScreen extends StatelessWidget {
                       MaterialPageRoute(
                         builder: (context) => BlocProvider.value(
                           value: context.read<TasksCubit>(),
-                          child: TaskDetailScreen(task: task),
+                          child: TaskDetailScreen(
+                            task: task,
+                            isFromCompletedScreen:
+                                false,
+                          ),
                         ),
                       ),
                     );
